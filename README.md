@@ -130,21 +130,6 @@ That's it — one process. The mock-ERP era of this project (two local servers) 
 
 ---
 
-## How to talk about this in an interview
-
-**"What makes it an agent, not just a wrapper?"**
-The LLM is given a goal and a set of tools, then runs in a loop — think, pick a tool, read the result, decide the next step — until done. The sequence isn't hard-coded; the model plans it at runtime.
-
-**"Why a confirmation gate instead of just trusting the prompt?"**
-Because "follow this instruction reliably" and "100% of the time" aren't the same thing, and for write actions the difference matters. Moving the safety check into deterministic code means the data is safe even if the model ever gets it wrong.
-
-**"What was the hardest part?"**
-Not the agent logic — the deployment. Getting a real CAP service authenticated, bootstrapped, and stable on Cloud Foundry surfaced six distinct, real bugs, each with a different root cause, each only visible once it was actually live.
-
-**"What would you do next?"**
-Add proper XSUAA scopes (currently any valid token is authorized — there's authentication but not yet fine-grained authorization), move the in-memory SQLite to a persistent HANA Cloud instance, and add automated tests instead of the manual verification this was built with.
-
----
 
 ## Tech stack
 
