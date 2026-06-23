@@ -1,119 +1,155 @@
-# ERP AI Assistant 🤖
+# 🧾 ERP Agentic AI Assistant
 
-A natural-language assistant that sits on top of an ERP system. You type plain
-English ("show me all pending approvals", "create a vendor called Falcon IT",
-"approve all pending purchase orders under 5000") and an **LLM agent** figures
-out which ERP API calls to make — in the right order — and executes them.
+**An LLM agent that runs real business operations against a live SAP backend — not a mock, not a localhost demo.**
 
-> Built with an LLM **agent** (LangChain + Groq) over a **mock ERP REST API**
-> (FastAPI). The ERP data is simulated, so this demonstrates the agent and
-> integration pattern, not a live SAP/Sage connection.
+You type plain English. An agent plans the steps, calls the right tools in the right order, and nothing changes data until you've explicitly confirmed it — code-enforced, not just prompted.
 
----
+**🔗 Live demo:** [erp-agentic-ai-assistant.onrender.com](https://erp-agentic-ai-assistant.onrender.com)
+*(free-tier hosting — first load may take ~30s to wake up; usage is rate-limited to keep the shared AI quota fair for everyone)*
 
-## What's in this project
-
-| File | What it is |
-|------|------------|
-| `erp_api.py`    | A fake ERP system (FastAPI). Stores vendors + purchase orders. This is the "backend". |
-| `erp_tools.py`  | The tools the AI is allowed to use. Each one calls the ERP API over HTTP. |
-| `agent_app.py`  | The AI agent (LangChain + Groq) + a Gradio chat window. |
-| `requirements.txt` | The exact library versions to install. |
-| `.env.example`  | Template for your secret Groq API key. |
-
-### How the pieces talk to each other
-
-```
-You (browser chat)
-      │
-      ▼
-agent_app.py  ── the LLM agent decides WHAT to do, in a loop
-      │
-      ▼ (calls a tool)
-erp_tools.py  ── each tool makes an HTTP request
-      │
-      ▼
-erp_api.py    ── the mock ERP answers (vendors, POs, etc.)
-```
-
-The agent can ONLY act through the tools. It cannot invent data. That's what
-makes it safe and realistic.
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-Agent-1C3C3C)
+![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-F55036)
+![SAP CAP](https://img.shields.io/badge/SAP%20CAP-Node.js-0FAAFF?logo=sap&logoColor=white)
+![Cloud Foundry](https://img.shields.io/badge/Cloud%20Foundry-Deployed-0C9ED5)
+![XSUAA](https://img.shields.io/badge/Auth-OAuth2%20%2F%20XSUAA-success)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
-## Setup (do this once)
+## Why this project is different
 
-**1. Install the libraries**
+Most "AI agent" demos stop at a mock REST API. This one doesn't:
 
+- The backend is a **real SAP CAP (Cloud Application Programming Model) service**, written in CDS + Node.js, deployed to **SAP BTP Cloud Foundry**, with a real data model, custom business actions, and validation logic.
+- Authentication is **real OAuth2 client-credentials via XSUAA** — the agent fetches and caches its own bearer token, the same way a production service-to-service integration would.
+- Every write action (approve, reject, edit) is **staged, not executed** — the LLM can *propose* a change, but the actual mutation only happens from deterministic Python code, after an explicit "yes." The model's word is never trusted with real data.
+- It's deployed **twice, independently** — the SAP service on Cloud Foundry, the agent + dashboard on Render — and wired together over the public internet, the same way two real microservices would talk to each other.
+
+---
+
+## Architecture
+
+```mermaid
+graph LR
+    U["👤 You<br/>(browser)"] -->|"plain English"| D["🖥️ Dashboard<br/>(FastAPI + vanilla JS)"]
+    D -->|"/api/chat"| A["🤖 LangChain Agent<br/>(Groq · Llama 3.3 70B)"]
+    A -->|"tool calls"| T["🔧 erp_tools.py<br/>OAuth + OData client"]
+    T -->|"bearer token"| X["🔐 XSUAA<br/>(client credentials)"]
+    T -->|"REST/OData v4"| S["☁️ SAP CAP Service<br/>(CDS + Node.js)"]
+    S --> H["🗄️ In-memory SQLite<br/>(schema-bootstrapped)"]
+
+    style A fill:#1C3C3C,color:#fff
+    style S fill:#0FAAFF,color:#fff
+    style X fill:#2d8a4e,color:#fff
+```
+
+**Two independently deployed services:**
+
+| Layer | Where it runs | What it does |
+|---|---|---|
+| Agent + dashboard | Render (`agent_api.py`) | LLM reasoning loop, web UI, rate limiting |
+| ERP backend | SAP BTP Cloud Foundry | Real CDS data model, business actions, auth |
+
+The agent never talks to a database directly — it only ever calls the SAP service's public OData API, exactly like an external integration partner would.
+
+---
+
+## What's in this repo
+
+| File | Role |
+|---|---|
+| `agent_app.py` | The agent itself — LangChain `AgentExecutor` + Groq, the confirmation-gate logic |
+| `erp_tools.py` | Every tool the agent can call — OAuth token caching, OData request building, error handling |
+| `agent_api.py` | FastAPI server: chat endpoint, live-state endpoint, daily rate limiter |
+| `static/index.html` | The dashboard UI — chat, live data panel, collapsible reasoning trace |
+| `erp-cap-service/` | The real SAP CAP project — `db/schema.cds`, `srv/service.cds` + `service.js`, `mta.yaml`, `xs-security.json` |
+
+---
+
+## The confirmation gate (the part worth understanding)
+
+Early on, the system prompt just *asked* the model to confirm before changing data. That worked most of the time — and "most of the time" isn't good enough for anything that touches real records.
+
+So write tools don't write. Calling `approve_purchase_order` only stages the intent:
+
+```
+PROPOSED (not yet done): approve PO1001.
+Ask the user to confirm with 'yes' before this takes effect.
+```
+
+The actual HTTP call lives in plain Python in `agent_api.py`, and only fires when the user's *next* message is a literal confirmation — checked deterministically, never inferred by the model. Declining is handled the same way: recognized as a fixed phrase, resolved instantly, **without invoking the LLM at all** (which also means a decline costs zero tokens).
+
+---
+
+## Real bugs found and fixed while building this
+
+These weren't theoretical — they showed up against the live deployment during testing, and each one taught something:
+
+- **OData strict parsing vs. `requests` defaults** — Python's `requests` encodes spaces in query params as `+`; SAP's OData parser requires `%20` and rejects `+` outright. Fixed by hand-encoding filter expressions.
+- **Import-order bug** — `erp_tools.py` reads its config from environment variables at import time, but it was being imported *before* `load_dotenv()` ran elsewhere — so the values were silently empty. Fixed by having the module load its own `.env`.
+- **CAP reserved-method collision** — naming a custom action `reject` conflicts with a method CAP's framework already defines internally. Renamed to `rejectOrder`.
+- **Missing production dependency** — `@sap/xssec` (XSUAA's auth library) wasn't declared, so the deployed app crash-looped on every boot the moment auth was enabled.
+- **Production database silently defaulted to HANA** — the build pipeline assumed a HANA target by default; fixed by explicitly configuring SQLite for production and enabling `in_memory_db` so the schema bootstraps on every boot (since there's no separate persistent deploy step for an in-memory database).
+- **Field-casing mismatches** — the dashboard was originally written for a quick local mock (`id`, `total_amount`); the real CAP service returns CDS-native casing (`ID`, `totalAmount`) and OData-wrapped arrays (`{"value": [...]}` instead of a bare array). Fixed with defensive parsing that works against either shape.
+
+---
+
+## Running it locally
+
+**1. Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-**2. Get a free Groq API key**
-
-Go to https://console.groq.com/keys, create a key, then:
-
+**2. Configure your environment**
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
+Fill in:
+- `GROQ_API_KEY` — from [console.groq.com/keys](https://console.groq.com/keys)
+- `CAP_API_BASE_URL`, `CAP_TOKEN_URL`, `CAP_CLIENT_ID`, `CAP_CLIENT_SECRET` — from your own deployed CAP service's XSUAA service key (`cf create-service-key` / `cf service-key`)
 
-Open the new `.env` file and paste your key after `GROQ_API_KEY=`.
+**3. Run it**
+```bash
+uvicorn agent_api:app --reload --port 8001
+```
+Open `http://127.0.0.1:8001`.
+
+That's it — one process. The mock-ERP era of this project (two local servers) is retired; the agent talks straight to the real deployed SAP service.
 
 ---
 
-## Running it (you need TWO terminals)
+## Things to try
 
-This is on purpose — the ERP and the agent are two separate services, exactly
-like in the real world.
-
-**Terminal 1 — start the mock ERP:**
-
-```bash
-uvicorn erp_api:app --reload --port 8000
-```
-
-Leave it running. (You can open http://127.0.0.1:8000/docs to see the API.)
-
-**Terminal 2 — start the AI assistant:**
-
-```bash
-python agent_app.py
-```
-
-It will print a local URL (like http://127.0.0.1:7860). Open it and start chatting.
-
----
-
-## Things to try (and what they prove)
-
-| You type | What the agent does | Why it matters |
-|----------|--------------------|----------------|
-| "Show me all pending purchase orders" | One read call | Basic tool use |
-| "Create a purchase order of 2500 for ACME Trading" | Looks up ACME's id, *then* creates the PO | **Multi-step**: step 2 uses step 1's result |
-| "Approve all pending purchase orders under 5000" | Lists pending → filters → approves each | **A real agent loop** — it plans the steps itself |
-
-That middle and last row are the important ones. A request that needs several
-chained calls — where later steps depend on earlier results — is what makes
-this *agentic* and not just a translator.
+| You type | What happens | Why it matters |
+|---|---|---|
+| `show me all vendors` | One read call against the live SAP service | Basic tool use, real OData response |
+| `find IT vendors` | Builds and sends a `$filter=contains(...)` OData query | Tool calls translate to real query syntax, not just REST paths |
+| `approve PO1001` → *(confirm)* | Stages the action, waits, then calls the real `approve` action on CAP | The confirmation gate, end to end |
+| `create a purchase order of 2500 for vendor V001` | Looks up the next free ID, then creates the order | Multi-step reasoning where step 2 depends on step 1 |
 
 ---
 
 ## How to talk about this in an interview
 
-- **"What makes it an agent?"** The LLM is given a goal and a set of tools, then
-  runs in a loop: think → pick a tool → read the result → decide the next step,
-  until done. I don't hard-code the sequence; the model plans it at runtime.
-- **"How is this different from your n8n GL workflow?"** n8n is *deterministic* —
-  I drew the boxes and the path is fixed. This agent decides the path itself
-  based on the request. One is workflow automation, one is LLM planning.
-- **"What are its weaknesses?"** It's a mock ERP, so no real auth or transactions.
-  LLM agents can also pick the wrong tool or loop, which is why I added a
-  `max_iterations` cap and write-action guardrails in the system prompt.
-- **"What would you do next?"** Point the tools at a real OData service with
-  XSUAA/JWT auth, and add human-in-the-loop confirmation before write actions.
+**"What makes it an agent, not just a wrapper?"**
+The LLM is given a goal and a set of tools, then runs in a loop — think, pick a tool, read the result, decide the next step — until done. The sequence isn't hard-coded; the model plans it at runtime.
+
+**"Why a confirmation gate instead of just trusting the prompt?"**
+Because "follow this instruction reliably" and "100% of the time" aren't the same thing, and for write actions the difference matters. Moving the safety check into deterministic code means the data is safe even if the model ever gets it wrong.
+
+**"What was the hardest part?"**
+Not the agent logic — the deployment. Getting a real CAP service authenticated, bootstrapped, and stable on Cloud Foundry surfaced six distinct, real bugs, each with a different root cause, each only visible once it was actually live.
+
+**"What would you do next?"**
+Add proper XSUAA scopes (currently any valid token is authorized — there's authentication but not yet fine-grained authorization), move the in-memory SQLite to a persistent HANA Cloud instance, and add automated tests instead of the manual verification this was built with.
 
 ---
 
 ## Tech stack
 
-LangChain agent · Groq (`llama-3.3-70b-versatile`) · FastAPI · Gradio · Python
+**Agent:** LangChain · Groq (`llama-3.3-70b-versatile`) · Python
+**Backend:** SAP CAP (CDS) · Node.js · XSUAA · SQLite (in-memory) · Cloud Foundry
+**Dashboard:** FastAPI · vanilla HTML/CSS/JS
+**Hosting:** Render (agent) + SAP BTP (backend)
