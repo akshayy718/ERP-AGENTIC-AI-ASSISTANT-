@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<!--
+  index.html
+  ----------
+  This is the dashboard UI. It is plain HTML/CSS/JavaScript - no React,
+  no build step, no npm install. You open it in a browser and it just works,
+  because agent_api.py serves it directly.
+
+  It talks to agent_api.py over two endpoints:
+    POST /api/chat   - send a message, get back {reply, steps, pending}
+    GET  /api/state  - get the current vendors/purchase-orders/spend summary
+
+  Everything below is one file on purpose: fewer moving parts, fewer ways
+  for the the demo to break in front of an interviewer.
+-->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ERP assistant</title>
+<style>
+  /* ---------- THEME COLORS ----------
+     Two sets of CSS variables - one for dark mode (the default), one for
+     light mode. The JS at the bottom just flips data-theme on <html> and
+     everything below repaints automatically because every color below
+     uses var(--...) instead of a hardcoded color. */
+  :root[data-theme="dark"] {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #1c2128;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-tertiary: #6e7681;
+    --accent: #58a6ff;
+    --accent-bg: rgba(88, 166, 255, 0.12);
+    --success: #3fb950;
+    --success-bg: rgba(63, 185, 80, 0.15);
+    --warning: #d29922;
+    --warning-bg: rgba(210, 153, 34, 0.15);
+    --danger: #f85149;
+    --danger-bg: rgba(248, 81, 73, 0.15);
+  }
+  :root[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --border: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #59636e;
+    --text-tertiary: #818b98;
+    --accent: #0969da;
+    --accent-bg: rgba(9, 105, 218, 0.08);
+    --success: #1a7f37;
+    --success-bg: rgba(31, 136, 61, 0.10);
+    --warning: #9a6700;
+    --warning-bg: rgba(154, 103, 0, 0.10);
+    --danger: #cf222e;
+    --danger-bg: rgba(207, 34, 46, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .mono { font-family: "SF Mono", Consolas, Monaco, monospace; }
+
+  /* ---------- LAYOUT ---------- */
+  .app { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+  }
+  header .brand { font-weight: 600; font-size: 16px; }
+  header .right { display: flex; align-items: center; gap: 16px; }
+  .live { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .live .dot.offline { background: var(--danger); }
+  #theme-toggle {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #theme-toggle:hover { background: var(--bg-tertiary); }
+
+  .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ---------- CHAT PANEL ---------- */
+  .panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+  }
+  #messages { display: flex; flex-direction: column; gap: 14px; min-height: 320px; max-height: 60vh; overflow-y: auto; }
+
+  .msg-row { display: flex; }
+  .msg-row.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 85%;
+    padding: 8px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .bubble.user { background: var(--accent-bg); color: var(--accent); }
+  .bubble.assistant { background: var(--bg-tertiary); color: var(--text-primary); }
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .step-row { margin: 0; }
+  .step-row summary {
+    cursor: pointer;
+    color: var(--text-primary);
+    list-style: none;
+  }
+  .step-row summary::-webkit-details-marker { display: none; }
+  .step-row summary::before { content: "\25B8  "; color: var(--text-tertiary); }
+  .step-row[open] summary::before { content: "\25BE  "; }
+  .step-detail {
+    margin: 4px 0 2px 16px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    word-break: break-all;
+  }
+
+  .proposal {
+    margin-top: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .proposal-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .btn {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.confirm { background: var(--success-bg); color: var(--success); border-color: transparent; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .input-row { display: flex; gap: 8px; margin-top: 14px; }
+  #chat-input {
+    flex: 1;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  #chat-input:focus { outline: none; border-color: var(--accent); }
+  #send-btn {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 0 18px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #send-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---------- SIDE PANEL (live data) ---------- */
+  .side-stack { display: flex; flex-direction: column; gap: 12px; }
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .metric-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .metric-card .label { font-size: 12px; color: var(--text-secondary); margin: 0 0 4px; }
+  .metric-card .value { font-size: 22px; font-weight: 600; margin: 0; }
+  .metric-card .sub { font-size: 11px; color: var(--text-tertiary); margin: 4px 0 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  th { text-align: left; color: var(--text-secondary); font-weight: 500; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th.num, td.num { text-align: right; }
+  td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .pill.pending { background: var(--warning-bg); color: var(--warning); }
+  .pill.approved { background: var(--success-bg); color: var(--success); }
+  .pill.rejected { background: var(--danger-bg); color: var(--danger); }
+
+  .offline-banner {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .empty-hint { color: var(--text-tertiary); font-size: 13px; padding: 1rem 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">ERP assistant</div>
+    <div class="right">
+      <div class="live">
+        <span class="dot" id="live-dot"></span>
+        <span id="live-label">Live</span>
+      </div>
+      <button id="theme-toggle">Light mode</button>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- Chat panel -->
+    <div class="panel">
+      <div id="messages">
+        <div class="empty-hint">
+          Try: "show me all pending purchase orders", or
+          "approve all pending purchase orders under 5000".
+        </div>
+      </div>
+      <div class="input-row">
+        <input id="chat-input" type="text" placeholder="Ask in plain English..." />
+        <button id="send-btn">Send</button>
+      </div>
+    </div>
+
+    <!-- Live data panel -->
+    <div class="side-stack">
+      <div id="offline-banner" class="offline-banner" style="display:none;">
+        Can't reach the ERP server. Make sure it's running on port 8000.
+      </div>
+      <div class="metrics">
+        <div class="metric-card">
+          <p class="label">Pending</p>
+          <p class="value" id="metric-pending">$0</p>
+          <p class="sub" id="metric-pending-count">0 orders</p>
+        </div>
+        <div class="metric-card">
+          <p class="label">Approved</p>
+          <p class="value" id="metric-approved">$0</p>
+          <p class="sub" id="metric-approved-count">0 orders</p>
+        </div>
+      </div>
+      <div class="panel">
+        <p class="label" style="font-size:12px; color: var(--text-secondary); margin: 0 0 8px;">Purchase orders</p>
+        <table>
+          <tr><th>PO</th><th class="num">Amount</th><th class="num">Status</th></tr>
+          <tbody id="po-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------
+// 1. THEME TOGGLE
+// ---------------------------------------------------------------------
+const root = document.documentElement;
+const themeToggleBtn = document.getElementById("theme-toggle");
+
+function applyTheme(theme) {
+  root.setAttribute("data-theme", theme);
+  themeToggleBtn.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+  localStorage.setItem("erp-theme", theme);
+}
+applyTheme(localStorage.getItem("erp-theme") || "dark");
+
+themeToggleBtn.addEventListener("click", () => {
+  const current = root.getAttribute("data-theme");
+  applyTheme(current === "dark" ? "light" : "dark");
+});
+
+// ---------------------------------------------------------------------
+// 2. SMALL HELPERS
+// ---------------------------------------------------------------------
+function money(amount) {
+  return "$" + Number(amount).toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[ch]));
+}
+
+function pillHtml(status) {
+  return `<span class="pill ${status}">${status}</span>`;
+}
+
+// Conversation history we send back to the agent each turn, so it has
+// context. Mirrors the {role, content} shape the Python side expects.
+let history = [];
+
+// ---------------------------------------------------------------------
+// 3. RENDERING THE CHAT
+// ---------------------------------------------------------------------
+const messagesEl = document.getElementById("messages");
+
+function clearEmptyHint() {
+  const hint = messagesEl.querySelector(".empty-hint");
+  if (hint) hint.remove();
+}
+
+function addUserBubble(text) {
+  clearEmptyHint();
+  const row = document.createElement("div");
+  row.className = "msg-row user";
+  row.innerHTML = `<div class="bubble user"></div>`;
+  row.querySelector(".bubble").textContent = text;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addAssistantMessage(reply, steps, pending) {
+  clearEmptyHint();
+  const row = document.createElement("div");
+  row.className = "msg-row assistant";
+
+  let stepsHtml = "";
+  if (steps && steps.length > 0) {
+    const lines = steps.map(s => {
+      const summary = escapeHtml(s.summary || s.tool);
+      const toolLabel = escapeHtml(s.tool);
+      const inputStr = escapeHtml(JSON.stringify(s.input));
+      const resultStr = escapeHtml((s.result || "").toString());
+      return `<details class="step-row">
+        <summary>${summary}</summary>
+        <div class="step-detail mono">${toolLabel}(${inputStr}) &rarr; ${resultStr}</div>
+      </details>`;
+    }).join("");
+    stepsHtml = `<div class="steps">${lines}</div>`;
+  }
+
+  let proposalHtml = "";
+  if (pending && pending.length > 0) {
+    proposalHtml = `
+      <div class="proposal">
+        <div class="proposal-actions">
+          <button class="btn confirm" data-action="yes">Confirm</button>
+          <button class="btn" data-action="no">Cancel</button>
+        </div>
+      </div>`;
+  }
+
+  row.innerHTML = `
+    <div class="bubble assistant">
+      <div class="reply-text"></div>
+      ${stepsHtml}
+      ${proposalHtml}
+    </div>`;
+  row.querySelector(".reply-text").textContent = reply;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  // Wire up Confirm/Cancel if this message has a proposal attached.
+  const actionsEl = row.querySelector(".proposal-actions");
+  if (actionsEl) {
+    actionsEl.querySelectorAll(".btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        actionsEl.querySelectorAll(".btn").forEach(b => b.disabled = true);
+        sendMessage(btn.dataset.action === "yes" ? "yes" : "no", true);
+      });
+    });
+  }
+}
+
+// ---------------------------------------------------------------------
+// 4. TALKING TO THE BACKEND
+// ---------------------------------------------------------------------
+const inputEl = document.getElementById("chat-input");
+const sendBtn = document.getElementById("send-btn");
+
+async function sendMessage(text, isConfirmation = false) {
+  text = text.trim();
+  if (!text) return;
+
+  if (!isConfirmation) {
+    addUserBubble(text);
+  }
+  inputEl.value = "";
+  inputEl.disabled = true;
+  sendBtn.disabled = true;
+
+  try {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, history }),
+    });
+    const data = await resp.json();
+
+    addAssistantMessage(data.reply, data.steps, data.pending);
+
+    // Keep history in sync for the next turn's context.
+    history.push({ role: "user", content: text });
+    history.push({ role: "assistant", content: data.reply });
+
+    // The agent may have changed data - refresh the live panel.
+    refreshState();
+  } catch (err) {
+    addAssistantMessage("Could not reach the agent server. Is agent_api.py running?", [], []);
+  } finally {
+    inputEl.disabled = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+sendBtn.addEventListener("click", () => sendMessage(inputEl.value));
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendMessage(inputEl.value);
+});
+
+// ---------------------------------------------------------------------
+// 5. THE LIVE DATA PANEL (vendors / purchase orders / spend summary)
+// ---------------------------------------------------------------------
+async function refreshState() {
+  let data;
+  try {
+    const resp = await fetch("/api/state");
+    data = await resp.json();
+  } catch (err) {
+    setOffline(true);
+    return;
+  }
+
+  setOffline(!data.erp_reachable);
+  if (!data.erp_reachable) return;
+
+  const summary = data.summary || {};
+  // Real CAP service returns "totalAmount" (camelCase); the old mock used
+  // "total_amount" (snake_case). Try the real one first, fall back to the
+  // old one, so this works against either backend without further changes.
+  const pending = summary.pending || { count: 0, totalAmount: 0 };
+  const approved = summary.approved || { count: 0, totalAmount: 0 };
+  const pendingTotal = pending.totalAmount ?? pending.total_amount ?? 0;
+  const approvedTotal = approved.totalAmount ?? approved.total_amount ?? 0;
+
+  document.getElementById("metric-pending").textContent = money(pendingTotal);
+  document.getElementById("metric-pending-count").textContent = pending.count + " orders";
+  document.getElementById("metric-approved").textContent = money(approvedTotal);
+  document.getElementById("metric-approved-count").textContent = approved.count + " orders";
+
+  const tbody = document.getElementById("po-table-body");
+  tbody.innerHTML = "";
+  // Real OData responses wrap arrays as {"value": [...]}; the old mock
+  // returned a bare array. Handle both shapes.
+  const poList = Array.isArray(data.purchase_orders)
+    ? data.purchase_orders
+    : (data.purchase_orders && data.purchase_orders.value) || [];
+  poList.forEach(po => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono"></td>
+      <td class="num mono"></td>
+      <td class="num">${pillHtml(po.status)}</td>`;
+    // Real service uses "ID" (uppercase); the old mock used "id".
+    tr.children[0].textContent = po.ID ?? po.id;
+    tr.children[1].textContent = money(po.amount);
+    tbody.appendChild(tr);
+  });
+}
+
+function setOffline(isOffline) {
+  document.getElementById("offline-banner").style.display = isOffline ? "block" : "none";
+  document.getElementById("live-dot").classList.toggle("offline", isOffline);
+  document.getElementById("live-label").textContent = isOffline ? "Offline" : "Live";
+}
+
+// Load the live panel as soon as the page opens.
+refreshState();
+</script>
+</body>
+</html>

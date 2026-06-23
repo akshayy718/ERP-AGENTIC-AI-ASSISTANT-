@@ -1,0 +1,8 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+requests==2.32.3
+langchain==0.3.14
+langchain-core==0.3.29
+langchain-groq==0.2.3
+gradio==5.9.1
+python-dotenv==1.0.1
