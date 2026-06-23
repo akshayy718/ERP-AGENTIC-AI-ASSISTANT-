@@ -1,19 +1,18 @@
 # 🧾 ERP Agentic AI Assistant
 
-**An LLM agent that runs real business operations against a live SAP backend — not a mock, not a localhost demo.**
+An agent that doesn't just *talk about* doing things — it does them, against a real, deployed SAP backend, with a safety net that doesn't depend on the AI being right 100% of the time.
 
-You type plain English. An agent plans the steps, calls the right tools in the right order, and nothing changes data until you've explicitly confirmed it — code-enforced, not just prompted.
+[![LIVE DEMO](https://img.shields.io/badge/LIVE_DEMO-ERP--AGENTIC--AI--ASSISTANT.ONRENDER.COM-F5A623?style=for-the-badge)](https://erp-agentic-ai-assistant.onrender.com)
 
-**🔗 Live demo:** [erp-agentic-ai-assistant.onrender.com](https://erp-agentic-ai-assistant.onrender.com)
-*(free-tier hosting — first load may take ~30s to wake up; usage is rate-limited to keep the shared AI quota fair for everyone)*
+![Python](https://img.shields.io/badge/PYTHON-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![LangChain](https://img.shields.io/badge/LANGCHAIN-1C3C3C?style=for-the-badge)
+![Groq](https://img.shields.io/badge/GROQ_·_LLAMA_3.3-F55036?style=for-the-badge)
+![SAP CAP](https://img.shields.io/badge/SAP_CAP-0FAAFF?style=for-the-badge&logo=sap&logoColor=white)
+![Cloud Foundry](https://img.shields.io/badge/CLOUD_FOUNDRY-0C9ED5?style=for-the-badge)
+![XSUAA](https://img.shields.io/badge/OAUTH2_·_XSUAA-2D8A4E?style=for-the-badge)
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![LangChain](https://img.shields.io/badge/LangChain-Agent-1C3C3C)
-![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-F55036)
-![SAP CAP](https://img.shields.io/badge/SAP%20CAP-Node.js-0FAAFF?logo=sap&logoColor=white)
-![Cloud Foundry](https://img.shields.io/badge/Cloud%20Foundry-Deployed-0C9ED5)
-![XSUAA](https://img.shields.io/badge/Auth-OAuth2%20%2F%20XSUAA-success)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+*First load on the live demo may take ~30s (free-tier hosting wakes from sleep). Usage is rate-limited to keep the shared AI quota fair for every visitor.*
+
 
 ---
 
@@ -153,3 +152,17 @@ Add proper XSUAA scopes (currently any valid token is authorized — there's aut
 **Backend:** SAP CAP (CDS) · Node.js · XSUAA · SQLite (in-memory) · Cloud Foundry
 **Dashboard:** FastAPI · vanilla HTML/CSS/JS
 **Hosting:** Render (agent) + SAP BTP (backend)
+
+---
+
+## 🧑‍💻 Author
+
+**Akshay Santhosh** — AI/ML Engineer · SAP BTP Developer
+
+[![LinkedIn](https://img.shields.io/badge/LINKEDIN-AKSHAY_SANTHOSH-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/REPLACE_WITH_YOUR_LINKEDIN_SLUG)
+[![GitHub](https://img.shields.io/badge/GITHUB-AKSHAYY718-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/akshayy718)
+[![Gmail](https://img.shields.io/badge/GMAIL-AKSHAYSANTHOSH718-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:akshaysanthosh718@gmail.com)
+
+---
+
+*Built with ❤️ using Python · LangChain · Groq AI · SAP CAP · Cloud Foundry*
