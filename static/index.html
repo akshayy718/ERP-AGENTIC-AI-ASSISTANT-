@@ -219,6 +219,16 @@
     font-size: 12px;
   }
 
+  .fallback-banner {
+    background: var(--warning-bg);
+    color: var(--warning);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .fallback-banner #fallback-reason { opacity: 0.8; font-size: 11px; }
+
   .empty-hint { color: var(--text-tertiary); font-size: 13px; padding: 1rem 0; }
 </style>
 </head>
@@ -256,6 +266,10 @@
     <div class="side-stack">
       <div id="offline-banner" class="offline-banner" style="display:none;">
         Can't reach the ERP server. Make sure it's running on port 8000.
+      </div>
+      <div id="fallback-banner" class="fallback-banner" style="display:none;">
+        ⚠️ Live SAP backend unreachable right now — showing demo data instead.
+        <span id="fallback-reason"></span>
       </div>
       <div class="metrics">
         <div class="metric-card">
@@ -455,6 +469,7 @@ async function refreshState() {
   }
 
   setOffline(!data.erp_reachable);
+  setFallbackBanner(data.using_fallback_data, data.fallback_reason);
   if (!data.erp_reachable) return;
 
   const summary = data.summary || {};
@@ -495,6 +510,19 @@ function setOffline(isOffline) {
   document.getElementById("offline-banner").style.display = isOffline ? "block" : "none";
   document.getElementById("live-dot").classList.toggle("offline", isOffline);
   document.getElementById("live-label").textContent = isOffline ? "Offline" : "Live";
+}
+
+function setFallbackBanner(usingFallback, reason) {
+  const banner = document.getElementById("fallback-banner");
+  banner.style.display = usingFallback ? "block" : "none";
+  document.getElementById("fallback-reason").textContent = reason ? `(${reason})` : "";
+  // When showing fallback data, the connection itself is "working" (we're
+  // successfully serving something) - but it's not the live SAP backend,
+  // so reflect that honestly in the status dot/label instead of "Live".
+  if (usingFallback) {
+    document.getElementById("live-dot").classList.add("offline");
+    document.getElementById("live-label").textContent = "Demo data";
+  }
 }
 
 // Load the live panel as soon as the page opens.

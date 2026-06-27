@@ -141,6 +141,8 @@ def get_state():
         "purchase_orders": _safe_json(pos_raw),
         "summary": summary,
         "erp_reachable": not vendors_raw.startswith("ERROR"),
+        "using_fallback_data": erp_tools.is_using_fallback(),
+        "fallback_reason": erp_tools.fallback_reason(),
     }
 
 
