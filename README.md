@@ -1,4 +1,4 @@
-  # 🧾 ERP Agentic AI Assistant
+# 🧾 ERP Agentic AI Assistant
 
 An agent that doesn't just *talk about* doing things — it does them, against a real, deployed SAP backend, with a safety net that doesn't depend on the AI being right 100% of the time.
 
@@ -81,6 +81,16 @@ The actual HTTP call lives in plain Python in `agent_api.py`, and only fires whe
 
 ---
 
+## Graceful degradation when SAP is unreachable
+
+The live SAP backend runs on a free trial, which means it can occasionally be asleep, mid-restart, or just slow to wake up. Rather than show a broken demo to anyone visiting at the wrong moment, every tool automatically falls back to a small in-memory dataset shaped identically to the real service's responses — same field names, same casing, same structure.
+
+A simple circuit breaker decides when this kicks in: a genuine connectivity failure (timeout, connection refused, a 502/503/504 gateway error) opens the circuit for 60 seconds, during which calls go straight to the fallback data; afterward, it automatically tries the real service again.
+
+**The one rule that mattered most while building this:** it is never silent. A real, reachable error from SAP (like a 404 for a vendor that doesn't exist) is shown as-is — that's not an outage, it's a real answer. Only a genuine failure to reach the service at all triggers fallback, and when it does, the dashboard shows a clear amber banner and switches its status indicator from "Live" to "Demo data." The entire point of this project is "this is a real SAP backend, not a mock" — quietly substituting one without saying so would undermine that.
+
+---
+
 ## Real bugs found and fixed while building this
 
 These weren't theoretical — they showed up against the live deployment during testing, and each one taught something:
@@ -91,6 +101,7 @@ These weren't theoretical — they showed up against the live deployment during 
 - **Missing production dependency** — `@sap/xssec` (XSUAA's auth library) wasn't declared, so the deployed app crash-looped on every boot the moment auth was enabled.
 - **Production database silently defaulted to HANA** — the build pipeline assumed a HANA target by default; fixed by explicitly configuring SQLite for production and enabling `in_memory_db` so the schema bootstraps on every boot (since there's no separate persistent deploy step for an in-memory database).
 - **Field-casing mismatches** — the dashboard was originally written for a quick local mock (`id`, `total_amount`); the real CAP service returns CDS-native casing (`ID`, `totalAmount`) and OData-wrapped arrays (`{"value": [...]}` instead of a bare array). Fixed with defensive parsing that works against either shape.
+- **Cross-platform exception handling** — the fallback logic initially caught only two specific `requests` exception subtypes (`ConnectionError`, `Timeout`). Testing on a different machine/network produced a different subtype (`ConnectTimeout`) that fell through uncached, slipping past the fallback entirely. Fixed by catching the broader parent exception class - there's no real scenario where "couldn't reach the service at all" should behave differently depending on the exact subtype.
 
 ---
 
@@ -129,7 +140,6 @@ That's it — one process. The mock-ERP era of this project (two local servers) 
 | `create a purchase order of 2500 for vendor V001` | Looks up the next free ID, then creates the order | Multi-step reasoning where step 2 depends on step 1 |
 
 ---
-
 
 ## Tech stack
 
