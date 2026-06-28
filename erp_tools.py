@@ -356,10 +356,24 @@ def _api_request(method: str, path: str, **kwargs) -> str:
         return _dispatch_mock(method, path, json_body)
 
     if resp.status_code >= 400:
+        # A real application error from OUR app always comes back as JSON
+        # in the shape {"error": {"message": ..., "code": ...}}. If the
+        # body DOESN'T match that shape, this isn't a real app error at
+        # all - it's something at the platform level instead. The clearest
+        # example: when the CAP app itself is stopped, Cloud Foundry's
+        # router returns its own generic 404 page (confirmed - this is
+        # documented, accepted gorouter behavior, not a bug), which looks
+        # nothing like our app's JSON. Treat anything like that as an
+        # outage, not a real error - otherwise a sleeping app would show
+        # confusing platform errors instead of gracefully falling back.
         try:
-            detail = resp.json().get("error", {}).get("message", resp.text)
-        except Exception:
-            detail = resp.text
+            detail = resp.json()["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            _open_circuit(
+                f"SAP service returned an unexpected {resp.status_code} response "
+                f"(not our app's error format - likely the app itself is stopped)"
+            )
+            return _dispatch_mock(method, path, json_body)
         return f"ERROR ({resp.status_code}): {detail}"
 
     return resp.text
