@@ -134,12 +134,18 @@ _MOCK_VENDORS = [
     {"ID": "V001", "name": "ACME Trading LLC", "category": "Supplies", "status": "active"},
     {"ID": "V002", "name": "Gulf Logistics", "category": "Transport", "status": "active"},
     {"ID": "V003", "name": "Emirates Tech", "category": "IT", "status": "active"},
+    {"ID": "V004", "name": "Test Co", "category": "Testing", "status": "active"},
 ]
 _MOCK_PURCHASE_ORDERS = [
     {"ID": "PO1001", "vendor_ID": "V001", "amount": 4500.0, "status": "pending", "description": "Office supplies Q2"},
     {"ID": "PO1002", "vendor_ID": "V002", "amount": 12000.0, "status": "pending", "description": "Fleet maintenance"},
     {"ID": "PO1003", "vendor_ID": "V003", "amount": 3000.0, "status": "approved", "description": "Laptops"},
     {"ID": "PO1004", "vendor_ID": "V001", "amount": 800.0, "status": "pending", "description": "Stationery"},
+    {"ID": "PO1005", "vendor_ID": "V001", "amount": 250.0, "status": "pending", "description": "Printer cartridges"},
+    {"ID": "PO1006", "vendor_ID": "V002", "amount": 2200.0, "status": "approved", "description": "Office furniture"},
+    {"ID": "PO1007", "vendor_ID": "V003", "amount": 3500.0, "status": "pending", "description": "IT equipment"},
+    {"ID": "PO1008", "vendor_ID": "V004", "amount": 950.0, "status": "rejected", "description": "Training materials"},
+    {"ID": "PO1009", "vendor_ID": "V001", "amount": 6800.0, "status": "approved", "description": "Warehouse racking"},
 ]
 
 

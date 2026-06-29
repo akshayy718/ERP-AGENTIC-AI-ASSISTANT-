@@ -17,7 +17,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ERP assistant</title>
+<title>Anchor — ERP Agentic AI</title>
 <style>
   /* ---------- THEME COLORS ----------
      Two sets of CSS variables - one for dark mode (the default), one for
@@ -71,6 +71,35 @@
   /* ---------- LAYOUT ---------- */
   .app { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 
+  /* ---------- HERO BANNER ---------- */
+  .top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-primary);
+    box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.4);
+  }
+  .hero {
+    text-align: center;
+    padding: 18px 0 14px;
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: 1.25rem;
+  }
+  .hero .wordmark {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: var(--accent);
+    margin: 0;
+  }
+  .hero .tagline {
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--text-tertiary);
+    margin: 4px 0 0;
+    text-transform: uppercase;
+  }
+
   header {
     display: flex;
     align-items: center;
@@ -78,11 +107,12 @@
     margin-bottom: 1.25rem;
   }
   header .brand { font-weight: 600; font-size: 16px; }
+  header .brand-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
   header .right { display: flex; align-items: center; gap: 16px; }
   .live { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
   .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
   .live .dot.offline { background: var(--danger); }
-  #theme-toggle {
+  #theme-toggle, #refresh-btn {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     color: var(--text-primary);
@@ -91,7 +121,23 @@
     font-size: 12px;
     cursor: pointer;
   }
-  #theme-toggle:hover { background: var(--bg-tertiary); }
+  #theme-toggle:hover, #refresh-btn:hover { background: var(--bg-tertiary); }
+  #refresh-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---------- FOOTER ---------- */
+  footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+    margin-top: 1.5rem;
+    padding-top: 12px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  footer .server-status { display: flex; align-items: center; gap: 6px; }
+  footer .server-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  footer .server-status .dot.offline { background: var(--danger); }
 
   .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
   @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
@@ -166,6 +212,24 @@
   .btn:disabled { opacity: 0.5; cursor: default; }
 
   .input-row { display: flex; gap: 8px; margin-top: 14px; }
+
+  /* ---------- SUGGESTION CHIPS ---------- */
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .chip {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    border-radius: 16px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .chip:hover { color: var(--accent); border-color: var(--accent); }
   #chat-input {
     flex: 1;
     background: var(--bg-tertiary);
@@ -201,10 +265,28 @@
   .metric-card .sub { font-size: 11px; color: var(--text-tertiary); margin: 4px 0 0; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-  th { text-align: left; color: var(--text-secondary); font-weight: 500; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  th:nth-child(1), td:nth-child(1) { width: 48%; }
+  th:nth-child(2), td:nth-child(2) { width: 26%; }
+  th:nth-child(3), td:nth-child(3) { width: 26%; }
+  .po-table-wrap { max-height: 320px; overflow-y: auto; }
+  th { text-align: left; color: var(--text-secondary); font-weight: 500; padding: 6px 4px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); position: sticky; top: 0; }
   th.num, td.num { text-align: right; }
-  td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: top; overflow: hidden; }
   tr:last-child td { border-bottom: none; }
+  .po-id { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .po-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  #po-search {
+    width: 100%;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  #po-search:focus { outline: none; border-color: var(--accent); }
 
   .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
   .pill.pending { background: var(--warning-bg); color: var(--warning); }
@@ -235,16 +317,27 @@
 <body>
 <div class="app">
 
-  <header>
-    <div class="brand">ERP assistant</div>
-    <div class="right">
-      <div class="live">
-        <span class="dot" id="live-dot"></span>
-        <span id="live-label">Live</span>
-      </div>
-      <button id="theme-toggle">Light mode</button>
+  <div class="top-bar">
+    <div class="hero">
+      <p class="wordmark">ANCHOR</p>
+      <p class="tagline">ERP Agentic AI</p>
     </div>
-  </header>
+
+    <header>
+      <div>
+        <div class="brand">ERP assistant</div>
+        <div class="brand-sub">LangChain · Groq · live SAP backend</div>
+      </div>
+      <div class="right">
+        <div class="live">
+          <span class="dot" id="live-dot"></span>
+          <span id="live-label">Live</span>
+        </div>
+        <button id="refresh-btn" title="Refresh live data">&#x21bb; Refresh</button>
+        <button id="theme-toggle">Light mode</button>
+      </div>
+    </header>
+  </div>
 
   <div class="grid">
 
@@ -255,6 +348,13 @@
           Try: "show me all pending purchase orders", or
           "approve all pending purchase orders under 5000".
         </div>
+      </div>
+      <div class="chip-row" id="suggestion-chips">
+        <button class="chip" data-text="show me all vendors">show me all vendors</button>
+        <button class="chip" data-text="show pending purchase orders">show pending purchase orders</button>
+        <button class="chip" data-text="approve PO1001">approve PO1001</button>
+        <button class="chip" data-text="create a PO of $2500 for vendor V001">create a PO of $2500 for vendor V001</button>
+        <button class="chip" data-text="spend summary">spend summary</button>
       </div>
       <div class="input-row">
         <input id="chat-input" type="text" placeholder="Ask in plain English..." />
@@ -285,14 +385,27 @@
       </div>
       <div class="panel">
         <p class="label" style="font-size:12px; color: var(--text-secondary); margin: 0 0 8px;">Purchase orders</p>
-        <table>
-          <tr><th>PO</th><th class="num">Amount</th><th class="num">Status</th></tr>
-          <tbody id="po-table-body"></tbody>
-        </table>
+        <input id="po-search" type="text" placeholder="Search by ID, vendor, or description..." />
+        <div class="po-table-wrap">
+          <table>
+            <tr><th>PO</th><th class="num">Amount</th><th class="num">Status</th></tr>
+            <tbody id="po-table-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
   </div>
+
+  <footer>
+    <span>&copy; 2026 Anchor ERP. All rights reserved. Made by Akshay Santhosh.</span>
+    <span>v1.0.0 · Live SAP backend</span>
+    <span class="server-status">
+      <span class="dot" id="footer-server-dot"></span>
+      <span id="footer-server-label">Server Online</span>
+    </span>
+  </footer>
+
 </div>
 
 <script>
@@ -455,6 +568,62 @@ inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendMessage(inputEl.value);
 });
 
+document.getElementById("suggestion-chips").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (chip) sendMessage(chip.dataset.text);
+});
+
+const refreshBtn = document.getElementById("refresh-btn");
+refreshBtn.addEventListener("click", async () => {
+  refreshBtn.disabled = true;
+  await refreshState();
+  refreshBtn.disabled = false;
+});
+
+// Keep the full, unfiltered list around so the search box can filter
+// client-side without needing another round-trip to the server.
+let currentPoList = [];
+
+function renderPoTable(list) {
+  const tbody = document.getElementById("po-table-body");
+  tbody.innerHTML = "";
+  list.forEach(po => {
+    const id = po.ID ?? po.id;
+    const vendor = po.vendor_ID ?? po.vendor_id ?? "";
+    const description = po.description ?? "";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <div class="po-id mono"></div>
+        <div class="po-sub"></div>
+      </td>
+      <td class="num mono"></td>
+      <td class="num">${pillHtml(po.status)}</td>`;
+    tr.querySelector(".po-id").textContent = id;
+    // Vendor on its own line, description (if any) right under it -
+    // matches the info density of the richer table we ported this from.
+    tr.querySelector(".po-sub").textContent = [vendor, description].filter(Boolean).join(" · ");
+    tr.children[1].textContent = money(po.amount);
+    tbody.appendChild(tr);
+  });
+}
+
+const poSearchEl = document.getElementById("po-search");
+poSearchEl.addEventListener("input", () => {
+  const q = poSearchEl.value.trim().toLowerCase();
+  if (!q) {
+    renderPoTable(currentPoList);
+    return;
+  }
+  const filtered = currentPoList.filter(po => {
+    const id = String(po.ID ?? po.id ?? "").toLowerCase();
+    const vendor = String(po.vendor_ID ?? po.vendor_id ?? "").toLowerCase();
+    const description = String(po.description ?? "").toLowerCase();
+    return id.includes(q) || vendor.includes(q) || description.includes(q);
+  });
+  renderPoTable(filtered);
+});
+
 // ---------------------------------------------------------------------
 // 5. THE LIVE DATA PANEL (vendors / purchase orders / spend summary)
 // ---------------------------------------------------------------------
@@ -463,8 +632,10 @@ async function refreshState() {
   try {
     const resp = await fetch("/api/state");
     data = await resp.json();
+    setFooterServerStatus(true);
   } catch (err) {
     setOffline(true);
+    setFooterServerStatus(false);
     return;
   }
 
@@ -486,24 +657,25 @@ async function refreshState() {
   document.getElementById("metric-approved").textContent = money(approvedTotal);
   document.getElementById("metric-approved-count").textContent = approved.count + " orders";
 
-  const tbody = document.getElementById("po-table-body");
-  tbody.innerHTML = "";
   // Real OData responses wrap arrays as {"value": [...]}; the old mock
   // returned a bare array. Handle both shapes.
-  const poList = Array.isArray(data.purchase_orders)
+  currentPoList = Array.isArray(data.purchase_orders)
     ? data.purchase_orders
     : (data.purchase_orders && data.purchase_orders.value) || [];
-  poList.forEach(po => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="mono"></td>
-      <td class="num mono"></td>
-      <td class="num">${pillHtml(po.status)}</td>`;
-    // Real service uses "ID" (uppercase); the old mock used "id".
-    tr.children[0].textContent = po.ID ?? po.id;
-    tr.children[1].textContent = money(po.amount);
-    tbody.appendChild(tr);
-  });
+
+  // Re-apply whatever's currently in the search box, so a refresh (e.g.
+  // after confirming an action) doesn't wipe out an in-progress search.
+  const q = poSearchEl.value.trim().toLowerCase();
+  if (!q) {
+    renderPoTable(currentPoList);
+  } else {
+    poSearchEl.dispatchEvent(new Event("input"));
+  }
+}
+
+function setFooterServerStatus(isOnline) {
+  document.getElementById("footer-server-dot").classList.toggle("offline", !isOnline);
+  document.getElementById("footer-server-label").textContent = isOnline ? "Server Online" : "Server Offline";
 }
 
 function setOffline(isOffline) {
